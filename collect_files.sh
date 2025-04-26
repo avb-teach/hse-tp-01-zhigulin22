@@ -75,6 +75,7 @@ process_files() {
         fi
     done
 }
+
 create_dirs
 process_files
 echo "Копирование завершено."
