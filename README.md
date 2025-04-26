@@ -6,7 +6,7 @@
 
 Скрипт должен вызываться так:
 
-ghbgbg
+ghbgbgvkv
 
 `collect_files.sh /path/to/input_dir /path/to/output_dir`
 
