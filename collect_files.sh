@@ -3,7 +3,6 @@ if [ "$#" -lt 2 ]; then
     echo "Использование: $0 <input_dir> <output_dir> [--max_depth <n>]"
     exit 1
 fi
-
 INPUT_DIR="$1"
 OUTPUT_DIR="$2"
 MAX_DEPTH=-1
@@ -28,7 +27,7 @@ get_depth() {
 }
 create_dirs() {
     if [ "$MAX_DEPTH" -lt 0 ]; then
-        return
+        return 
     fi
     
     find "$INPUT_DIR" -type d | while read -r dir; do
@@ -58,6 +57,7 @@ process_files() {
         if [ -f "$target_dir/$file_name" ]; then
             name="${file_name%.*}"
             ext="${file_name##*.}"
+            
             if [ "$name" = "$ext" ]; then
                 ext=""
             else
@@ -75,7 +75,7 @@ process_files() {
         fi
     done
 }
-
 create_dirs
 process_files
+
 echo "Копирование завершено."
