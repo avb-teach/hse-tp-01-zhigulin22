@@ -1,97 +1,80 @@
 #!/bin/bash
-if [[ "$#" -lt 2 ]]; then
-    echo "Использование: $0 /путь/к/входной_директории /путь/к/выходной_директории [--max_depth число]"
+if [ "$#" -lt 2 ]; then
+    echo "Использование: $0 <input_dir> <output_dir> [--max_depth <n>]"
     exit 1
 fi
-input_dir="$1"
-output_dir="$2"
-max_depth=-1 
-if [[ "$#" -gt 2 && "$3" == "--max_depth" && "$4" =~ ^[0-9]+$ ]]; then
-    max_depth=\$4
+
+INPUT_DIR="$1"
+OUTPUT_DIR="$2"
+MAX_DEPTH=-1
+if [ "$3" = "--max_depth" ] && [ "$4" -ge 0 ] 2>/dev/null; then
+    MAX_DEPTH="\$4"
 fi
-if [[ ! -d "$input_dir" ]]; then
-    echo "Ошибка: входная директория не существует: $input_dir"
+if [ ! -d "$INPUT_DIR" ]; then
+    echo "Ошибка: входная директория не существует"
     exit 1
 fi
-mkdir -p "$output_dir"
-copy_files() {
-    local src="$1"
-    local dst="$2"
-    local current_depth="$3"
-    local rel_path="${4:-}" 
-    for item in "$src"/*; do
-        if [[ ! -e "$item" ]]; then
-            continue
-        fi
-        
-        local item_name=$(basename "$item")
-        
-        if [[ -f "$item" ]]; then
-            if [[ $max_depth -ge 0 && $current_depth -gt $max_depth ]]; then
-                local target_dir="$output_dir/$rel_path"
-                mkdir -p "$target_dir"
-                if [[ -f "$target_dir/$item_name" ]]; then
-                    local counter=1
-                    local file_ext="${item_name##*.}"
-                    local file_name="${item_name%.*}"
-                    
-                    if [[ "$file_name" == "$file_ext" ]]; then
-                        file_ext=""
-                    else
-                        file_ext=".$file_ext"
-                    fi
-                    
-                    local new_name="${file_name}${counter}${file_ext}"
-                    while [[ -f "$target_dir/$new_name" ]]; do
-                        ((counter++))
-                        new_name="${file_name}${counter}${file_ext}"
-                    done
-                    cp "$item" "$target_dir/$new_name"
-                else
-                    cp "$item" "$target_dir/$item_name"
-                fi
-            else
-                if [[ -f "$dst/$item_name" ]]; then
-                    local counter=1
-                    local file_ext="${item_name##*.}"
-                    local file_name="${item_name%.*}"
-                    
-                    if [[ "$file_name" == "$file_ext" ]]; then
-                        file_ext=""
-                    else
-                        file_ext=".$file_ext"
-                    fi
-                    
-                    local new_name="${file_name}${counter}${file_ext}"
-                    while [[ -f "$dst/$new_name" ]]; do
-                        ((counter++))
-                        new_name="${file_name}${counter}${file_ext}"
-                    done
-                    
-                    cp "$item" "$dst/$new_name"
-                else
-                    cp "$item" "$dst/$item_name"
-                fi
-            fi
-        elif [[ -d "$item" ]]; then
-            if [[ $max_depth -lt 0 || $current_depth -lt $max_depth ]]; then
-                local new_dst="$dst/$item_name"
-                mkdir -p "$new_dst"
-                local new_rel_path
-                if [[ -z "$rel_path" ]]; then
-                    new_rel_path="$item_name"
-                else
-                    new_rel_path="$rel_path/$item_name"
-                fi
-                copy_files "$item" "$new_dst" $((current_depth + 1)) "$new_rel_path"
-            else
-                mkdir -p "$dst/$item_name"
-                find "$item" -type f -exec cp {} "$dst/$item_name/" \;
-            fi
+mkdir -p "$OUTPUT_DIR"
+get_depth() {
+    local path="$1"
+    local base="$2"
+    local rel_path="${path#$base}"
+    rel_path="${rel_path#/}"
+    if [ -z "$rel_path" ]; then
+        echo 0
+    else
+        echo "$rel_path" | awk -F'/' '{print NF}'
+    fi
+}
+create_dirs() {
+    if [ "$MAX_DEPTH" -lt 0 ]; then
+        return
+    fi
+    
+    find "$INPUT_DIR" -type d | while read -r dir; do
+        depth=$(get_depth "$dir" "$INPUT_DIR")
+        if [ "$depth" -le "$MAX_DEPTH" ]; then
+            rel_path="${dir#$INPUT_DIR}"
+            [ -z "$rel_path" ] && continue
+            mkdir -p "$OUTPUT_DIR$rel_path"
         fi
     done
 }
-
-copy_files "$input_dir" "$output_dir" 0
+process_files() {
+    find "$INPUT_DIR" -type f | while read -r file; do
+        rel_path="${file#$INPUT_DIR}"
+        file_name=$(basename "$file")
+        dir_path=$(dirname "$rel_path")
+        depth=$(get_depth "$file" "$INPUT_DIR")
+        
+        if [ "$MAX_DEPTH" -lt 0 ] || [ "$depth" -le "$MAX_DEPTH" ]; then
+            target_dir="$OUTPUT_DIR$dir_path"
+        else
+            allowed_path=$(echo "$dir_path" | cut -d'/' -f1-$MAX_DEPTH)
+            target_dir="$OUTPUT_DIR$allowed_path"
+        fi
+        
+        mkdir -p "$target_dir"
+        if [ -f "$target_dir/$file_name" ]; then
+            name="${file_name%.*}"
+            ext="${file_name##*.}"
+            if [ "$name" = "$ext" ]; then
+                ext=""
+            else
+                ext=".$ext"
+            fi
+            
+            counter=1
+            while [ -f "$target_dir/$name$counter$ext" ]; do
+                counter=$((counter+1))
+            done
+            
+            cp "$file" "$target_dir/$name$counter$ext"
+        else
+            cp "$file" "$target_dir/$file_name"
+        fi
+    done
+}
+create_dirs
+process_files
 echo "Копирование завершено."
-
