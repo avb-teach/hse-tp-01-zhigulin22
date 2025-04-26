@@ -3,6 +3,7 @@ if [ "$#" -lt 2 ]; then
     echo "Использование: $0 <input_dir> <output_dir> [--max_depth <n>]"
     exit 1
 fi
+
 INPUT_DIR="$1"
 OUTPUT_DIR="$2"
 MAX_DEPTH=""
